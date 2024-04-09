@@ -16,9 +16,7 @@ from weak_to_strong.train import ModelConfig, train_and_save_model
 model_conf_params = {}
 
 #create configs
-param_sizes = ["14m", "70m"] #"70m", "160m","410m","1b","1.4b"] #,"2.8b"]
-#create configs
-param_sizes = ["160m","410m","1b","1.4b","2.8b"]
+param_sizes = ["70m", "160m","410m"] #,"1b","1.4b","2.8b"]
 learning_rates = [5e-5,5e-5,5e-5,5e-5,5e-5]
 batch_sizes = [60,48,24,24,18]
 model_names = [f"EleutherAI/pythia-{params}" for params in param_sizes]
@@ -315,7 +313,7 @@ if __name__ == "__main__":
     from tqdm import tqdm
 
     param_list =  list(reversed(["14m"])) #, "70m"])) #, "160m"])) #,"410m","1b","1.4b","2.8b"]))
-    param_list =  list(reversed(["160m","410m","1b","1.4b","2.8b"]))
+    param_list =  list(reversed(["70m", "160m","410m","1b","1.4b","2.8b"]))
     step_list = list(range(1, 155, 30))
 
     model_combinations = product(param_list, repeat=2)
@@ -334,8 +332,9 @@ if __name__ == "__main__":
 
         file_path = os.path.join("results", f"{weak_model_size_str.replace('/', '_')}_{weak_model_ckpt_str}_{strong_model_size_str.replace('/', '_')}_{strong_model_ckpt_str}_.results_summary.json")
         
-        if weak_model_param not in ["1b", "1.4b", "2.8b"] and strong_model_param in ["1b"]:
-            print('*****************TEST*****************')
+       # if weak_model_param not in ["1b", "1.4b", "2.8b"] and strong_model_param in ["160m"]:
+        if weak_model_param in ["70m"] and strong_model_param in ["160m"]: 
+            print('*****************lsST*****************')
             print(f"weak_model_param: {weak_model_param}, strong_model_param: {strong_model_param}, weak_ckpt_step: {weak_ckpt_step}, strong_ckpt_step: {strong_ckpt_step}")
         
             if (os.path.exists(file_path) and os.path.getsize(file_path) > 0):
@@ -352,3 +351,4 @@ if __name__ == "__main__":
                 except Exception as e:
                     print('IT NOT TRAINING')
                     print(f"An exception occurred: {type(e).__name__}: {e}")
+            break
