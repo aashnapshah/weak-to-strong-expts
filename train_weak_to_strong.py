@@ -16,7 +16,13 @@ from weak_to_strong.train import ModelConfig, train_and_save_model
 model_conf_params = {}
 
 #create configs
+param_sizes = ["14m", "70m"] #"70m", "160m","410m","1b","1.4b"] #,"2.8b"]
+#create configs
 param_sizes = ["160m","410m","1b","1.4b","2.8b"]
+learning_rates = [5e-5,5e-5,5e-5,5e-5,5e-5]
+batch_sizes = [60,48,24,24,18]
+model_names = [f"EleutherAI/pythia-{params}" for params in param_sizes]
+
 learning_rates = [5e-5,5e-5,5e-5,5e-5,5e-5]
 batch_sizes = [60,48,24,24,18]
 model_names = [f"EleutherAI/pythia-{params}" for params in param_sizes]
@@ -40,9 +46,7 @@ for key, value in model_conf_params.items():
         batch_size=value["batch_size"],
         minibatch_size_per_device=value["minibatch_size_per_device"]
     )
-
-
-
+    
 loss_dict = {
     "logconf": logconf_loss_fn(),
     "product": product_loss_fn(),
@@ -50,7 +54,6 @@ loss_dict = {
 }
 
 VALID_LOSSES: List[str] = list(loss_dict.keys())
-
 
 def train_w2s(
     batch_size: int = 18,
@@ -62,7 +65,7 @@ def train_w2s(
     weak_model_size: str = "EleutherAI/pythia-70m",
     weak_model_ckpt: str = "step1000",
     weak_lr: Optional[float] = None,
-    strong_model_size: str = "EleutherAI/pythia-410m",
+    strong_model_size: str = "EleutherAI/pythia-160m", #410m",
     strong_model_ckpt: str = "step2000",
     strong_lr: Optional[float] = None,
     # Defaults to strong_lr
@@ -286,18 +289,18 @@ if __name__ == "__main__":
         'transfer_loss': "xent,logconf",
         'n_docs': 10000,
         'n_test_docs': 200,
-        'weak_model_size': "EleutherAI/pythia-70m",
+        'weak_model_size': "EleutherAI/pythia-14m", #"EleutherAI/pythia-70m",
         'weak_model_ckpt': "step1000",
         'weak_lr': None,
-        'strong_model_size': "EleutherAI/pythia-410m",
-        'strong_model_ckpt': "step2000",
+        'strong_model_size': "EleutherAI/pythia-70m", #"EleutherAI/pythia-410m",
+        'strong_model_ckpt': "step10", #step1000",
         'strong_lr': None,
         'transfer_lr': None,
         'weak_optim': None,
         'strong_optim': None,
         'transfer_optim': None,
-        'gt_epochs': 2,
-        'transfer_epochs': None,
+        'gt_epochs': 1, #2,
+        'transfer_epochs': 1, #None,
         'force_retrain': True,
         'seed': 0,
         'minibatch_size_per_device': 3,
@@ -311,6 +314,7 @@ if __name__ == "__main__":
     from itertools import product,combinations
     from tqdm import tqdm
 
+    param_list =  list(reversed(["14m"])) #, "70m"])) #, "160m"])) #,"410m","1b","1.4b","2.8b"]))
     param_list =  list(reversed(["160m","410m","1b","1.4b","2.8b"]))
     step_list = list(range(1, 155, 30))
 
@@ -318,7 +322,6 @@ if __name__ == "__main__":
     checkpoint_combinations = product(step_list, repeat=2)
 
     for (weak_model_param, strong_model_param), (weak_ckpt_step, strong_ckpt_step) in tqdm(product(model_combinations, checkpoint_combinations)):
-
         weak_model_size_str = f"EleutherAI/pythia-{weak_model_param}"
         strong_model_size_str = f"EleutherAI/pythia-{strong_model_param}"
         weak_model_ckpt_str = f"step{str(int(weak_ckpt_step * 1000))}"
@@ -331,7 +334,10 @@ if __name__ == "__main__":
 
         file_path = os.path.join("results", f"{weak_model_size_str.replace('/', '_')}_{weak_model_ckpt_str}_{strong_model_size_str.replace('/', '_')}_{strong_model_ckpt_str}_.results_summary.json")
         
-        if weak_model_param not in ["1b", "1.4b", "2.8b"]:
+        if weak_model_param not in ["1b", "1.4b", "2.8b"] and strong_model_param in ["1b"]:
+            print('*****************TEST*****************')
+            print(f"weak_model_param: {weak_model_param}, strong_model_param: {strong_model_param}, weak_ckpt_step: {weak_ckpt_step}, strong_ckpt_step: {strong_ckpt_step}")
+        
             if (os.path.exists(file_path) and os.path.getsize(file_path) > 0):
                 print (f"filepath: {file_path} exists")
             else:
@@ -344,4 +350,5 @@ if __name__ == "__main__":
                 try:
                     train_w2s(**train_params)
                 except Exception as e:
+                    print('IT NOT TRAINING')
                     print(f"An exception occurred: {type(e).__name__}: {e}")
