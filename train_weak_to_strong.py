@@ -21,10 +21,6 @@ learning_rates = [5e-5,5e-5,5e-5,5e-5,5e-5]
 batch_sizes = [60,48,24,24,18]
 model_names = [f"EleutherAI/pythia-{params}" for params in param_sizes]
 
-learning_rates = [5e-5,5e-5,5e-5,5e-5,5e-5]
-batch_sizes = [60,48,24,24,18]
-model_names = [f"EleutherAI/pythia-{params}" for params in param_sizes]
-
 for idx,param in enumerate(param_sizes):
     model_name = f"EleutherAI/pythia-{param}"
     model_conf_params[model_name] = {"default_lr":5e-5,
@@ -72,7 +68,7 @@ def train_w2s(
     weak_optim: Optional[str] = None,
     strong_optim: Optional[str] = None,
     transfer_optim: Optional[str] = None,
-    gt_epochs: int = 2,
+    gt_epochs: int = 5,
     # defaults to gt_epochs
     transfer_epochs: Optional[int] = None,
     force_retrain: bool = False,
@@ -281,29 +277,29 @@ def train_w2s(
 if __name__ == "__main__":
 
     train_params = {
-        'batch_size': 18,
+        'batch_size': 32,
         'max_ctx': 1024,
         'ds_name': "boolq",
-        'transfer_loss': "xent,logconf",
+        'transfer_loss': "xent",
         'n_docs': 10000,
         'n_test_docs': 200,
-        'weak_model_size': "EleutherAI/pythia-14m", #"EleutherAI/pythia-70m",
+        'weak_model_size': "gpt2-medium", #"EleutherAI/pythia-14m", #"EleutherAI/pythia-70m",
         'weak_model_ckpt': "step1000",
         'weak_lr': None,
-        'strong_model_size': "EleutherAI/pythia-70m", #"EleutherAI/pythia-410m",
-        'strong_model_ckpt': "step10", #step1000",
+        'strong_model_size': "gpt2-large",  #"EleutherAI/pythia-70m", #"EleutherAI/pythia-410m",
+        'strong_model_ckpt': "step2000",
         'strong_lr': None,
         'transfer_lr': None,
         'weak_optim': None,
         'strong_optim': None,
         'transfer_optim': None,
-        'gt_epochs': 1, #2,
-        'transfer_epochs': 1, #None,
+        'gt_epochs': 2,
+        'transfer_epochs': None,
         'force_retrain': True,
         'seed': 0,
         'minibatch_size_per_device': 3,
         'train_with_dropout': False,
-        'results_folder': "results",
+        'results_folder': "results_boolq",
         'linear_probe': False,
         'lr_schedule': "cosine_anneal",
         'log_prefix': "",
@@ -312,13 +308,14 @@ if __name__ == "__main__":
     from itertools import product,combinations
     from tqdm import tqdm
 
-    param_list =  list(reversed(["14m"])) #, "70m"])) #, "160m"])) #,"410m","1b","1.4b","2.8b"]))
     param_list =  list(reversed(["70m", "160m","410m","1b","1.4b","2.8b"]))
     step_list = list(range(1, 155, 30))
 
     model_combinations = product(param_list, repeat=2)
     checkpoint_combinations = product(step_list, repeat=2)
 
+    print(train_params["results_folder"])
+    
     for (weak_model_param, strong_model_param), (weak_ckpt_step, strong_ckpt_step) in tqdm(product(model_combinations, checkpoint_combinations)):
         weak_model_size_str = f"EleutherAI/pythia-{weak_model_param}"
         strong_model_size_str = f"EleutherAI/pythia-{strong_model_param}"
@@ -330,11 +327,11 @@ if __name__ == "__main__":
         train_params["weak_model_ckpt"] = weak_model_ckpt_str
         train_params["strong_model_ckpt"] = strong_model_ckpt_str
 
-        file_path = os.path.join("results", f"{weak_model_size_str.replace('/', '_')}_{weak_model_ckpt_str}_{strong_model_size_str.replace('/', '_')}_{strong_model_ckpt_str}_.results_summary.json")
+        file_path = os.path.join(f"{train_params['results_folder']}/{weak_model_size_str.replace('/', '_')}_{weak_model_ckpt_str}_{strong_model_size_str.replace('/', '_')}_{strong_model_ckpt_str}_.results_summary.json")
         
        # if weak_model_param not in ["1b", "1.4b", "2.8b"] and strong_model_param in ["160m"]:
         if weak_model_param in ["70m"] and strong_model_param in ["160m"]: 
-            print('*****************lsST*****************')
+            print('*****************HERE*****************')
             print(f"weak_model_param: {weak_model_param}, strong_model_param: {strong_model_param}, weak_ckpt_step: {weak_ckpt_step}, strong_ckpt_step: {strong_ckpt_step}")
         
             if (os.path.exists(file_path) and os.path.getsize(file_path) > 0):
@@ -351,4 +348,4 @@ if __name__ == "__main__":
                 except Exception as e:
                     print('IT NOT TRAINING')
                     print(f"An exception occurred: {type(e).__name__}: {e}")
-            break
+            
