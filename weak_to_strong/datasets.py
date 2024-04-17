@@ -5,6 +5,8 @@ from typing import Any, Callable, Optional
 
 from datasets import Dataset as HfDataset
 from datasets import load_dataset as hf_load_dataset
+from datasets import Dataset, Features, Value, Sequence
+import pandas as pd
 
 
 @dataclass
@@ -13,7 +15,7 @@ class DatasetConfig:
     loader: Callable[[str], HfDataset]
     # formats items to have keys 'txt' and 'hard_label', takes a random.Random rng
     formatter: Callable[[Any], Any]
-
+    file_path: Optional[str] = None 
 
 # mapping from dataset name to load function and format function
 _REGISTRY: dict[str, DatasetConfig] = {}
@@ -23,28 +25,55 @@ def register_dataset(name: str, config: DatasetConfig):
     _REGISTRY[name] = config
 
 
-def load_dataset(ds_name: str, seed: int = 0, split_sizes: Optional[dict] = None):
+def load_dataset(ds_name: str, seed: int = 0, split_sizes: dict = None):
     if split_sizes is None:
         split_sizes = dict(train=None, test=None)
 
     if ds_name not in _REGISTRY:
         raise ValueError(f"Unknown dataset {ds_name}, please register")
+
     cfg = _REGISTRY[ds_name]
     results = {}
-    for split, n_docs in split_sizes.items():
-        ds = cfg.loader(split)
-        try:
-            ds = ds.select(range(n_docs))
-        except IndexError as e:
-            print(f"Warning {ds_name} has less than {n_docs} docs, using all: {e}")
-        ds = ds.map(functools.partial(cfg.formatter, rng=Random(seed)))
-        ds = ds.map(
-            lambda ex: {"soft_label": [1 - float(ex["hard_label"]), float(ex["hard_label"])]}
-        )
-        ds = ds.shuffle(seed=seed)  # shuffling a bit pointless for test set but wtv
-        results[split] = ds
-    return results
+    print('Loading dataset:', ds_name)
+    # Check if cfg has a file_path attribute
+    if hasattr(cfg, 'file_path') and cfg.file_path:
+        # Load dataset from CSV file
+        file_path = cfg.file_path  # Assuming you have a file path stored in cfg
+        data = pd.read_csv(file_path).sample(frac=1, random_state=seed)  # Shuffle the data
+        used_indices = set()  # Keep track of used indices
 
+        for split, n_docs in split_sizes.items():
+            print(f"Creating split: {split}")
+            if n_docs is not None and len(data) >= n_docs:
+                remaining_indices = set(data.index) - used_indices  # Exclude used indices
+                sample_indices = list(remaining_indices)[:n_docs]
+                ds = data.loc[sample_indices].copy()  # Make a copy to avoid modifying original data
+                used_indices.update(sample_indices)  # Update used indices
+            else:
+                print(f"Warning: {ds_name} has less than {n_docs} docs, using all")
+                ds = data.copy()  # Use all data if n_docs is None or exceeds dataset size
+            
+            ds = cfg.formatter(ds, seed)
+            results[split] = ds 
+       
+    else:
+        # Load dataset from Hugging Face dataset loader
+        for split, n_docs in split_sizes.items():
+            ds = cfg.loader(split)
+            print(f"Loaded {(ds)} examples for {ds_name} {split}")
+            try:
+                ds = ds.select(range(n_docs))
+            except IndexError as e:
+                print(f"Warning {ds_name} has less than {n_docs} docs, using all: {e}")
+            ds = ds.map(functools.partial(cfg.formatter, rng=Random(seed)))
+            ds = ds.map(
+                lambda ex: {"soft_label": [1 - float(ex["hard_label"]), float(ex["hard_label"])]}
+            )
+            ds = ds.shuffle(seed=seed)  # shuffling a bit pointless for test set but wtv
+            results[split] = ds
+        
+    return results
+    
 
 def tokenize_dataset(
     raw_ds: HfDataset,
@@ -165,21 +194,55 @@ register_dataset(
     ),
 )
 
+def format_pneumothorax(data, seed):
+    """
+    Formatting function for the dataset.
+    """
+    # Example formatting logic, modify as per your dataset structure
+    txt = (data['report_small'] + ' ' + data['question']).tolist()
+    hard_label = data['Pneumothorax'].astype(int).tolist()
+    soft_label = [[1 - float(label), float(label)] for label in hard_label]
+
+    # Define features for the dataset
+    features = Features({
+        'txt': Value('string'),
+        'hard_label': Value('int64'),
+        'soft_label': Sequence(Value('float64'))  # List of floats representing soft label probabilities
+    })
+
+    # Create a Hugging Face Dataset from the formatted data
+    hf_dataset = Dataset.from_dict({
+        'txt': txt,
+        'hard_label': hard_label,
+        'soft_label': soft_label,
+    }, features=features)
+    return hf_dataset
+
+# Registering the CSV dataset
+register_dataset(
+    "pneumothorax",
+    DatasetConfig(
+        file_path= "/Users/aashnashah/Dropbox/Research/weak-to-strong-expts/data/pneumothorax.csv",
+        loader=hf_loader("pneumothorax"),                        
+        formatter=format_pneumothorax
+    ),
+)
+
 VALID_DATASETS: list[str] = list(_REGISTRY.keys())
 
-"""
-from datasets import disable_caching
-disable_caching()
+# """ TEST 
+# from datasets import disable_caching
+# disable_caching()
 
-from weak_to_strong.datasets import load_dataset, VALID_DATASETS
-import numpy as np
+# from weak_to_strong.datasets import load_dataset, VALID_DATASETS
+# import numpy as np
 
-ds_name = "boolq"
-print(VALID_DATASETS)
+# ds_name = "pneumothorax"
+# print(VALID_DATASETS)
 
-ds = load_dataset(ds_name, split_sizes=dict(train=500, test=10))
-train = list(ds['train'])
-test = list(ds['test'])
-print(test[0])
-print(np.mean([x['hard_label'] for x in train]))
-"""
+# ds = load_dataset(ds_name, split_sizes=dict(train=500, test=10))
+# train = list(ds['train'])
+# test = list(ds['test'])
+# print(test[0])
+# print(np.mean([x['hard_label'] for x in train]))
+# """

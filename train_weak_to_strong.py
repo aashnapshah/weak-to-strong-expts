@@ -270,19 +270,19 @@ def train_w2s(
         res_dict[f"transfer_acc_{tloss}"] = transfer_acc
         print(f"transfer acc ({tloss}):", transfer_acc)
 
-    with open(os.path.join(results_folder,f"{weak_model_size.replace('/', '_')}_{weak_model_ckpt}_{strong_model_size.replace('/', '_')}_{strong_model_ckpt}_.results_summary.json",),"w",) as f:
+    with open(os.path.join("results/", results_folder,f"{weak_model_size.replace('/', '_')}_{weak_model_ckpt}_{strong_model_size.replace('/', '_')}_{strong_model_ckpt}_.results_summary.json",),"w",) as f:
         json.dump(res_dict,f,)
     return
 
 if __name__ == "__main__":
 
     train_params = {
-        'batch_size': 32,
-        'max_ctx': 1024,
-        'ds_name': "boolq",
-        'transfer_loss': "xent",
-        'n_docs': 10000,
-        'n_test_docs': 200,
+        'batch_size': 18,
+        'max_ctx': 512,
+        'ds_name': "pneumothorax",
+        'transfer_loss': "xent,logconf",
+        'n_docs': 100,
+        'n_test_docs': 10,
         'weak_model_size': "gpt2-medium", #"EleutherAI/pythia-14m", #"EleutherAI/pythia-70m",
         'weak_model_ckpt': "step1000",
         'weak_lr': None,
@@ -299,7 +299,7 @@ if __name__ == "__main__":
         'seed': 0,
         'minibatch_size_per_device': 3,
         'train_with_dropout': False,
-        'results_folder': "results_boolq",
+        'results_folder': "results_pneumothorax",
         'linear_probe': False,
         'lr_schedule': "cosine_anneal",
         'log_prefix': "",
@@ -309,7 +309,7 @@ if __name__ == "__main__":
     from tqdm import tqdm
 
     param_list =  list(reversed(["70m", "160m","410m","1b","1.4b","2.8b"]))
-    step_list = list(range(1, 155, 30))
+    step_list = list(range(1, 155, 30))[:2]
 
     model_combinations = product(param_list, repeat=2)
     checkpoint_combinations = product(step_list, repeat=2)
@@ -327,11 +327,11 @@ if __name__ == "__main__":
         train_params["weak_model_ckpt"] = weak_model_ckpt_str
         train_params["strong_model_ckpt"] = strong_model_ckpt_str
 
-        file_path = os.path.join(f"{train_params['results_folder']}/{weak_model_size_str.replace('/', '_')}_{weak_model_ckpt_str}_{strong_model_size_str.replace('/', '_')}_{strong_model_ckpt_str}_.results_summary.json")
+        file_path = os.path.join(f"results/{train_params['results_folder']}/{weak_model_size_str.replace('/', '_')}_{weak_model_ckpt_str}_{strong_model_size_str.replace('/', '_')}_{strong_model_ckpt_str}_.results_summary.json")
         
        # if weak_model_param not in ["1b", "1.4b", "2.8b"] and strong_model_param in ["160m"]:
-        if weak_model_param in ["70m"] and strong_model_param in ["160m"]: 
-            print('*****************HERE*****************')
+        if weak_model_param in ["160m"] and strong_model_param in ["160m"]: 
+            print('*****************TRAINING*****************')
             print(f"weak_model_param: {weak_model_param}, strong_model_param: {strong_model_param}, weak_ckpt_step: {weak_ckpt_step}, strong_ckpt_step: {strong_ckpt_step}")
         
             if (os.path.exists(file_path) and os.path.getsize(file_path) > 0):

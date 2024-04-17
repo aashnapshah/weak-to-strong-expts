@@ -1,7 +1,7 @@
 import os
 import re
 
-folder_path = "results/"
+folder_path = "results/results_boolq"
 
 # Define a regular expression pattern to extract information from the filename
 pattern = r"EleutherAI_pythia-(\d+b)_step(\d+)_EleutherAI_pythia-(\db)_step(\d+)_.results_summary.json"
