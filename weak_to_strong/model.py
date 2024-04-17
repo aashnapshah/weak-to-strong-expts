@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 import torch
-from transformers import AutoConfig, AutoModelForCausalLM, PreTrainedModel
+from transformers import AutoConfig, AutoModelForCausalLM, PreTrainedModel, AutoTokenizer
 
 
 @dataclass

@@ -149,7 +149,7 @@ def train_w2s(
         linear_probe: bool = False,
         optimizer_name: str = "adam"):
 
-        save_path = os.path.join(results_folder, subpath)
+        save_path = os.path.join('results/', results_folder, subpath)
         linprobe_str = "_linprobe" if linear_probe else ""
         logger.configure(
             name="{log_prefix}{label}_{base_model_name}_{checkpoint}_{ds_name}_{loss_type}_{optimizer_name}_{lr}_{lr_schedule}{linprobe_str}_{datetime_now}",
@@ -281,8 +281,8 @@ if __name__ == "__main__":
         'max_ctx': 512,
         'ds_name': "pneumothorax",
         'transfer_loss': "xent,logconf",
-        'n_docs': 100,
-        'n_test_docs': 10,
+        'n_docs': 500,
+        'n_test_docs': 20,
         'weak_model_size': "gpt2-medium", #"EleutherAI/pythia-14m", #"EleutherAI/pythia-70m",
         'weak_model_ckpt': "step1000",
         'weak_lr': None,
