@@ -2,6 +2,7 @@ import json
 import os
 from typing import Dict, List, Optional, Sequence, Union
 
+import datetime 
 import fire
 import numpy as np
 import torch
@@ -279,10 +280,10 @@ if __name__ == "__main__":
     train_params = {
         'batch_size': 18,
         'max_ctx': 512,
-        'ds_name': "pneumothorax",
+        'ds_name': "boolq",
         'transfer_loss': "xent,logconf",
-        'n_docs': 500,
-        'n_test_docs': 20,
+        'n_docs': 200,
+        'n_test_docs': 1000,
         'weak_model_size': "gpt2-medium", #"EleutherAI/pythia-14m", #"EleutherAI/pythia-70m",
         'weak_model_ckpt': "step1000",
         'weak_lr': None,
@@ -327,10 +328,10 @@ if __name__ == "__main__":
         train_params["weak_model_ckpt"] = weak_model_ckpt_str
         train_params["strong_model_ckpt"] = strong_model_ckpt_str
 
-        file_path = os.path.join(f"results/{train_params['results_folder']}/{weak_model_size_str.replace('/', '_')}_{weak_model_ckpt_str}_{strong_model_size_str.replace('/', '_')}_{strong_model_ckpt_str}_.results_summary.json")
+        file_path = os.path.join(f"results/{train_params['results_folder']}/{weak_model_size_str.replace('/', '_')}_{weak_model_ckpt_str}_{strong_model_size_str.replace('/', '_')}_{strong_model_ckpt_str}_{datetime.date.today()}.results_summary.json")
         
        # if weak_model_param not in ["1b", "1.4b", "2.8b"] and strong_model_param in ["160m"]:
-        if weak_model_param in ["160m"] and strong_model_param in ["160m"]: 
+        if weak_model_param in ["70m"] and strong_model_param in ["160m"]: 
             print('*****************TRAINING*****************')
             print(f"weak_model_param: {weak_model_param}, strong_model_param: {strong_model_param}, weak_ckpt_step: {weak_ckpt_step}, strong_ckpt_step: {strong_ckpt_step}")
         

@@ -24,7 +24,6 @@ _REGISTRY: dict[str, DatasetConfig] = {}
 def register_dataset(name: str, config: DatasetConfig):
     _REGISTRY[name] = config
 
-
 def load_dataset(ds_name: str, seed: int = 0, split_sizes: dict = None):
     if split_sizes is None:
         split_sizes = dict(train=None, test=None)
@@ -46,7 +45,7 @@ def load_dataset(ds_name: str, seed: int = 0, split_sizes: dict = None):
             print(f"Creating split: {split}")
             if n_docs is not None and len(data) >= n_docs:
                 remaining_indices = set(data.index) - used_indices  # Exclude used indices
-                sample_indices = list(remaining_indices)[:n_docs]
+                sample_indices = data.loc[list(remaining_indices)].sample(n=n_docs, random_state=seed).index
                 ds = data.loc[sample_indices].copy()  # Make a copy to avoid modifying original data
                 used_indices.update(sample_indices)  # Update used indices
             else:
@@ -55,7 +54,7 @@ def load_dataset(ds_name: str, seed: int = 0, split_sizes: dict = None):
             
             ds = cfg.formatter(ds, seed)
             results[split] = ds 
-       
+                   
     else:
         # Load dataset from Hugging Face dataset loader
         for split, n_docs in split_sizes.items():
