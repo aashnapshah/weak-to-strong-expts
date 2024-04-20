@@ -294,7 +294,7 @@ def format_medqa(ex, rng):
 
     
     
-    return dict(txt=txt, hard_label=hard_label)
+    # return dict(txt=txt, hard_label=hard_label)
 
     # txt = data["question"].tolist() 
     # options = data["options"].tolist()
