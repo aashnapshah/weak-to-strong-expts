@@ -280,10 +280,10 @@ if __name__ == "__main__":
     train_params = {
         'batch_size': 18,
         'max_ctx': 512,
-        'ds_name': "boolq",
+        'ds_name': "medqa",
         'transfer_loss': "xent,logconf",
-        'n_docs': 1000,
-        'n_test_docs': 1000,
+        'n_docs': 100,
+        'n_test_docs': 10,
         'weak_model_size': "gpt2-medium", #"EleutherAI/pythia-14m", #"EleutherAI/pythia-70m",
         'weak_model_ckpt': "step1000",
         'weak_lr': None,
@@ -300,7 +300,7 @@ if __name__ == "__main__":
         'seed': 0,
         'minibatch_size_per_device': 3,
         'train_with_dropout': False,
-        'results_folder': "results_pneumothorax",
+        'results_folder': "results_medqa",
         'linear_probe': False,
         'lr_schedule': "cosine_anneal",
         'log_prefix': "",
@@ -312,10 +312,12 @@ if __name__ == "__main__":
     param_list =  list(reversed(["70m", "160m","410m","1b","1.4b","2.8b"]))
     step_list = list(range(1, 155, 30))[:2]
 
+    train_params['results_folder'] = "results_" + train_params['ds_name'] + '_' + str(train_params['n_docs']) + '_' + str(train_params['n_test_docs'])
+    print(train_params["results_folder"])
+
     model_combinations = product(param_list, repeat=2)
     checkpoint_combinations = product(step_list, repeat=2)
 
-    print(train_params["results_folder"])
     
     for (weak_model_param, strong_model_param), (weak_ckpt_step, strong_ckpt_step) in tqdm(product(model_combinations, checkpoint_combinations)):
         weak_model_size_str = f"EleutherAI/pythia-{weak_model_param}"
