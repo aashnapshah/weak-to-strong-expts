@@ -282,7 +282,7 @@ if __name__ == "__main__":
         'max_ctx': 512,
         'ds_name': "boolq",
         'transfer_loss': "xent,logconf",
-        'n_docs': 200,
+        'n_docs': 1000,
         'n_test_docs': 1000,
         'weak_model_size': "gpt2-medium", #"EleutherAI/pythia-14m", #"EleutherAI/pythia-70m",
         'weak_model_ckpt': "step1000",

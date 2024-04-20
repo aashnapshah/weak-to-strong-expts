@@ -7,7 +7,9 @@ from datasets import Dataset as HfDataset
 from datasets import load_dataset as hf_load_dataset
 from datasets import Dataset, Features, Value, Sequence
 import pandas as pd
-
+import glob
+import json 
+import random
 
 @dataclass
 class DatasetConfig:
@@ -15,7 +17,8 @@ class DatasetConfig:
     loader: Callable[[str], HfDataset]
     # formats items to have keys 'txt' and 'hard_label', takes a random.Random rng
     formatter: Callable[[Any], Any]
-    file_path: Optional[str] = None 
+    file_path: Optional[str] = None
+    folder: Optional[str] = None
 
 # mapping from dataset name to load function and format function
 _REGISTRY: dict[str, DatasetConfig] = {}
@@ -34,8 +37,8 @@ def load_dataset(ds_name: str, seed: int = 0, split_sizes: dict = None):
     cfg = _REGISTRY[ds_name]
     results = {}
     print('Loading dataset:', ds_name)
-    # Check if cfg has a file_path attribute
-    if hasattr(cfg, 'file_path') and cfg.file_path:
+    # Check if cfg has a file_path attribute and it ends with csv
+    if hasattr(cfg, 'file_path') and cfg.file_path and cfg.file_path.endswith('.csv'):
         # Load dataset from CSV file
         file_path = cfg.file_path  # Assuming you have a file path stored in cfg
         data = pd.read_csv(file_path).sample(frac=1, random_state=seed)  # Shuffle the data
@@ -54,6 +57,23 @@ def load_dataset(ds_name: str, seed: int = 0, split_sizes: dict = None):
             
             ds = cfg.formatter(ds, seed)
             results[split] = ds 
+            
+    elif hasattr(cfg, 'folder') and cfg.folder:
+        # Load dataset from JSON files
+        train_files = glob.glob(cfg.folder + '/*train*.jsonl')[0]
+        test_files = glob.glob(cfg.folder + '/*test*.jsonl')[0]
+        for split, ndocs in split_sizes.items():
+            if split == 'train':
+                data = pd.read_json(train_files, lines=True)
+                print(data.columns)
+                if ndocs is not None and len(data) >= ndocs:
+                    data = data.sample(n=ndocs, random_state=seed)
+            elif split == 'test':
+                data = pd.read_json(test_files, lines=True)
+                if ndocs is not None and len(data) >= ndocs:
+                    data = data.sample(n=ndocs, random_state=seed)
+            data = cfg.formatter(data, Random(seed))
+            results[split] = data
                    
     else:
         # Load dataset from Hugging Face dataset loader
@@ -224,6 +244,90 @@ register_dataset(
         file_path= "/Users/aashnashah/Dropbox/Research/weak-to-strong-expts/data/pneumothorax.csv",
         loader=hf_loader("pneumothorax"),                        
         formatter=format_pneumothorax
+    ),
+)
+
+def format_sciq(ex, rng):
+    hard_label = int(rng.random() < 0.5)
+    if hard_label:
+        ans = ex["correct_answer"]
+    else:
+        ans = rng.choice([ex["distractor1"], ex["distractor2"], ex["distractor3"]])
+    txt = f"Q: {ex['question']} A: {ans}"
+    return dict(txt=txt, hard_label=hard_label) 
+
+
+def format_medqa(ex, rng):
+    # Remove correct answer from options
+    ex['options'] = ex.apply(lambda row: {key: val for key, val in row['options'].items() if val != row['answer']}, axis=1)
+    ex['options'] = ex['options'].apply(lambda x: {'distractor{}'.format(i+1): val for i, (key, val) in enumerate(sorted(x.items()))})
+    ex['distractor1'] = ex['options'].apply(lambda x: x['distractor1']).tolist()
+    ex['distractor2'] = ex['options'].apply(lambda x: x['distractor2']).tolist()
+    ex['distractor3'] = ex['options'].apply(lambda x: x['distractor3']).tolist()
+    ex['correct_answer'] = ex['answer'].tolist()
+
+    # Generate random hard_label
+    ex['hard_label'] = ex.apply(lambda row: int(rng.random() < 0.5), axis=1)
+    ex['ans'] = ex.apply(lambda row: row["correct_answer"] if row["hard_label"] else rng.choice([row["distractor1"], row["distractor2"], row["distractor3"]]), axis=1)
+    
+    # Create hard and soft label columns
+    txt = ('Q: ' + ex['question'] + ' A: ' + ex['ans']).tolist()
+    hard_label = ex['hard_label'].tolist()
+    soft_label = [[1 - label, label] for label in hard_label]
+
+    # Define features for the dataset
+    features = Features({
+        'txt': Value('string'),
+        'correct_answer': Value('string'),
+        'hard_label': Value('int64'),
+        'soft_label': Sequence(Value('float64'))  # List of floats representing soft label probabilities
+    })
+
+    # Create a Hugging Face Dataset from the formatted data
+    hf_dataset = Dataset.from_dict({
+        'txt': txt,
+        'correct_answer': ex['correct_answer'].tolist(),
+        'hard_label': hard_label,
+        'soft_label': soft_label,
+    }, features=features)
+    return hf_dataset
+
+    
+    
+    return dict(txt=txt, hard_label=hard_label)
+
+    # txt = data["question"].tolist() 
+    # options = data["options"].tolist()
+    # hard_label = data["answer"].tolist()
+    # #distractors = [value for key, value in data["options"].items() if value != correct_answer]
+
+    # print(txt)
+    # print(options)
+    # print(hard_label)
+    # # Define features for the dataset
+    # features = Features({
+    #     'txt': Value('string'),
+    #     'hard_label': Value('string'),
+    # })
+
+    # # Create a Hugging Face Dataset from the formatted data
+    # hf_dataset = Dataset.from_dict({
+    #     'txt': txt,
+    #     'hard_label': hard_label,
+    # }, features=features)
+    # return hf_dataset
+
+
+    
+    # return dict(txt=txt, hard_label=hard_label)
+
+
+register_dataset(
+    "medqa",
+    DatasetConfig(
+        folder= "/Users/aashnashah/Dropbox/Research/weak-to-strong-expts/data/medQA_4_options",
+        loader=hf_loader("medqa"),                     
+        formatter=format_medqa
     ),
 )
 
