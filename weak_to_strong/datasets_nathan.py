@@ -7,6 +7,7 @@ from datasets import Dataset as HfDataset
 from datasets import load_dataset as hf_load_dataset
 from datasets import Dataset, Features, Value, Sequence
 import pandas as pd
+import numpy as np
 
 
 @dataclass
@@ -41,15 +42,36 @@ def load_dataset(ds_name: str, seed: int = 0, split_sizes: dict = None):
         data = pd.read_csv(file_path).sample(frac=1, random_state=seed)  # Shuffle the data
         used_indices = set()  # Keep track of used indices
 
-        if split_sizes['train'] is None:
-            ## means that train/test is already built in
-            results['train'] = data[data['train'] == 1]
-            results['test'] = data[data['train'] == 0]
+        if 'train' in list(data.columns):
+            ds_train = data[data['train'] == 1]
+            ds_test = data[data['train'] == 0]
+
+            ## means that train/test is already built in. now, split_sizes becomes how much to subsample
+            n_docs_train = split_sizes['train']
+            n_docs_test = split_sizes['test']
+
+            if split_sizes['train'] is not None:
+                if len(ds_train) >= n_docs_train:
+                    ds_train = ds_train.sample(n=split_sizes['train'], random_state=seed)
+                else:
+                    print(f"Warning: training dataset has {len(ds_train)} points and asked to subsample {n_docs_train}, using all")
+
+            ds_train = cfg.formatter(ds_train, np.random.default_rng(seed))
+            results['train'] = ds_train
+
+            if split_sizes['test'] is not None:
+                if len(ds_test) >= n_docs_test:
+                    ds_test = ds_test.sample(n=split_sizes['test'], random_state=seed)
+                else:
+                    print(f"Warning: training dataset has {len(ds_test)} points and asked to subsample {n_docs_test}, using all")
+
+            ds_test = cfg.formatter(ds_test, np.random.default_rng(seed))
+            results['test'] = ds_test
 
         else:
             for split, n_docs in split_sizes.items():
                 print(f"Creating split: {split}")
-                if n_docs is not None and len(data) <= n_docs:
+                if n_docs is not None and len(data) >= n_docs:
                     remaining_indices = set(data.index) - used_indices  # Exclude used indices
                     sample_indices = data.loc[list(remaining_indices)].sample(n=n_docs, random_state=seed).index
                     ds = data.loc[sample_indices].copy()  # Make a copy to avoid modifying original data
@@ -234,7 +256,7 @@ register_dataset(
 )
 
 
-def format_reportmulti(data, rng):
+def format_report(data, rng):
     hard_label = data['hard_label'].astype(int).tolist()
     soft_label = [[1 - float(label), float(label)] for label in hard_label]
     txt = []
@@ -267,11 +289,11 @@ def format_reportmulti(data, rng):
 
 
 register_dataset(
-    "reportmulti",
+    "report",
     DatasetConfig(
         file_path= "/Users/nathanjo/Dropbox (MIT)/MLHC_final_project/report_multiclass.csv",
-        loader=hf_loader("reportmulti"),
-        formatter=format_reportmulti,
+        loader=hf_loader("report"),
+        formatter=format_report,
     ),
 )
 
@@ -313,10 +335,51 @@ register_dataset(
     DatasetConfig(
         file_path= "/Users/nathanjo/Dropbox (MIT)/MLHC_final_project/bbq.csv",
         loader=hf_loader("bbq"),
-        formatter=format_reportmulti,
+        formatter=format_bbq,
     ),
 )
 
+
+def format_shadr(data, rng):
+    hard_label = data['hard_label'].astype(int).tolist()
+    soft_label = [[1 - float(label), float(label)] for label in hard_label]
+    txt = []
+    for _, row in data.iterrows():
+        h = int(row['hard_label'])
+        answer = None
+        if h:
+            answer = row['label']
+        else:
+            answer = rng.choice([row['distraction1'], row['distraction2']])
+
+        txt.append(f"Sentence: {row['text']}\n\nQuestion: {row['question']}\n\nAnswer: {answer}")
+
+
+    # Define features for the dataset
+    features = Features({
+        'txt': Value('string'),
+        'hard_label': Value('int64'),
+        'soft_label': Sequence(Value('float64'))  # List of floats representing soft label probabilities
+    })
+
+    # Create a Hugging Face Dataset from the formatted data
+    hf_dataset = Dataset.from_dict({
+        'txt': txt,
+        'hard_label': hard_label,
+        'soft_label': soft_label,
+    }, features=features)
+
+    return hf_dataset
+
+
+register_dataset(
+    "shadr",
+    DatasetConfig(
+        file_path= "/Users/nathanjo/Dropbox (MIT)/MLHC_final_project/shadr.csv",
+        loader=hf_loader("shadr"),
+        formatter=format_shadr,
+    ),
+)
 VALID_DATASETS: list[str] = list(_REGISTRY.keys())
 
 # """ TEST 
