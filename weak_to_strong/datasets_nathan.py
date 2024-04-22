@@ -234,16 +234,20 @@ register_dataset(
 )
 
 
-def format_reportmulti(ex, rng):
-    hard_label = int(ex['hard_label'])
-    if hard_label:
-        answer = ex['label']
-    else:
-        answer = rng.choice([ex['distraction1'], ex['distraction2']])
-
-    txt = f"Report: {ex['context']}\nQuestion: {ex['question']}\nAnswer: {answer}"
-
+def format_reportmulti(data, rng):
+    hard_label = data['hard_label'].astype(int).tolist()
     soft_label = [[1 - float(label), float(label)] for label in hard_label]
+    txt = []
+    for _, row in data.iterrows():
+        h = int(row['hard_label'])
+        answer = None
+        if h:
+            answer = row['label']
+        else:
+            answer = rng.choice([row['distraction1'], row['distraction2']])
+
+        txt.append(f"Report: {row['report_small']}\n\nQuestion: {row['question']}\n\nAnswer: {answer}")
+
 
     # Define features for the dataset
     features = Features({
@@ -267,6 +271,48 @@ register_dataset(
     DatasetConfig(
         file_path= "/Users/nathanjo/Dropbox (MIT)/MLHC_final_project/report_multiclass.csv",
         loader=hf_loader("reportmulti"),
+        formatter=format_reportmulti,
+    ),
+)
+
+
+def format_bbq(data, rng):
+    hard_label = data['hard_label'].astype(int).tolist()
+    soft_label = [[1 - float(label), float(label)] for label in hard_label]
+    txt = []
+    for _, row in data.iterrows():
+        h = int(row['hard_label'])
+        answer = None
+        if h:
+            answer = row[f'ans{row["label"]}']
+        else:
+            answer_idx = rng.choice([i for i in range(3) if i != int(row['label'])])
+            answer = row[f'ans{answer_idx}']
+
+        txt.append(f"Context: {row['context']}\nQuestion: {row['question']}\nAnswer: {answer}")
+
+    # Define features for the dataset
+    features = Features({
+        'txt': Value('string'),
+        'hard_label': Value('int64'),
+        'soft_label': Sequence(Value('float64'))  # List of floats representing soft label probabilities
+    })
+
+    # Create a Hugging Face Dataset from the formatted data
+    hf_dataset = Dataset.from_dict({
+        'txt': txt,
+        'hard_label': hard_label,
+        'soft_label': soft_label,
+    }, features=features)
+
+    return hf_dataset
+
+
+register_dataset(
+    "bbq",
+    DatasetConfig(
+        file_path= "/Users/nathanjo/Dropbox (MIT)/MLHC_final_project/bbq.csv",
+        loader=hf_loader("bbq"),
         formatter=format_reportmulti,
     ),
 )
