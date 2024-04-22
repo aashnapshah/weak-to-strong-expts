@@ -34,7 +34,6 @@ from weak_to_strong.train import ModelConfig, train_and_save_model
 
 os.chdir('../')
 
-access_token = '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'
 download_directory = '/n/groups/patel/aashna/weak-to-strong-expts/tmp'
 # Model from Hugging Face hub
 base_model = "NousResearch/Llama-2-7b-chat-hf"
@@ -141,7 +140,7 @@ prompt = """A 39-year-old woman is brought to the emergency department because o
     
 # pipe = pipeline(task="text-classification", model=model, tokenizer=tokenizer) #, max_length=512)
 # result = pipe(f"<s>[INST] {prompt} [/INST]")
-pipe = pipeline("text-classification")
+pipe = pipeline("text-classification", model=model, tokenizer=tokenizer)
 print(pipe([prompt]))
 
 result = pipe([prompt])
