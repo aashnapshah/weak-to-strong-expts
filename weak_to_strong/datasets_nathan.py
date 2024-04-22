@@ -243,6 +243,24 @@ def format_reportmulti(ex, rng):
 
     txt = f"Report: {ex['context']}\nQuestion: {ex['question']}\nAnswer: {answer}"
 
+    soft_label = [[1 - float(label), float(label)] for label in hard_label]
+
+    # Define features for the dataset
+    features = Features({
+        'txt': Value('string'),
+        'hard_label': Value('int64'),
+        'soft_label': Sequence(Value('float64'))  # List of floats representing soft label probabilities
+    })
+
+    # Create a Hugging Face Dataset from the formatted data
+    hf_dataset = Dataset.from_dict({
+        'txt': txt,
+        'hard_label': hard_label,
+        'soft_label': soft_label,
+    }, features=features)
+
+    return hf_dataset
+
 
 register_dataset(
     "reportmulti",
