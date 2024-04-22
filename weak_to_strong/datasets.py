@@ -65,7 +65,6 @@ def load_dataset(ds_name: str, seed: int = 0, split_sizes: dict = None):
         for split, ndocs in split_sizes.items():
             if split == 'train':
                 data = pd.read_json(train_files, lines=True)
-                print(data.columns)
                 if ndocs is not None and len(data) >= ndocs:
                     data = data.sample(n=ndocs, random_state=seed)
             elif split == 'test':
@@ -325,7 +324,7 @@ def format_medqa(ex, rng):
 register_dataset(
     "medqa",
     DatasetConfig(
-        folder= "/Users/aashnashah/Dropbox/Research/weak-to-strong-expts/data/medQA_4_options",
+        folder= "data/medQA_4_options/",
         loader=hf_loader("medqa"),                     
         formatter=format_medqa
     ),
