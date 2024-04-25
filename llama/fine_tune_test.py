@@ -40,7 +40,7 @@ base_model = "NousResearch/Llama-2-7b-chat-hf"
 
 # Load dataset
 seed = 0
-dataset = load_dataset('medqa', seed=seed, split_sizes=dict(train=10, test=1000))
+dataset = load_dataset('medqa', seed=seed, split_sizes=dict(train=10000, test=1000))
 
 # Split the training dataset in half
 train_ds, test_ds = dataset["train"], dataset["test"]
@@ -74,7 +74,8 @@ peft_params = LoraConfig(
     lora_dropout=0.1,
     r=64,
     bias="none",
-    task_type="SEQ_CLS",
+    target_modules="all-linear",
+    task_type="CAUSAL_LM",
 )
 
 new_model = '/n/groups/patel/aashna/weak-to-strong-expts/llama/medQA'
@@ -136,12 +137,12 @@ prompt = """A 39-year-old woman is brought to the emergency department because o
     When phenol is applied to a sample of the patient's blood at 90°C, a phosphorylated N-acetylglucosamine 
     dimer with 6 fatty acids attached to a polysaccharide side chain is identified. A blood 
     culture is most likely to show which of the following? A: "Lactose-fermenting, gram-negative rods 
-    forming pink colonies on MacConkey agar. If correct, respond with 1. If incorrect, respond with 0."""
+    forming pink colonies on MacConkey agar. Label: """
     
-# pipe = pipeline(task="text-classification", model=model, tokenizer=tokenizer) #, max_length=512)
-# result = pipe(f"<s>[INST] {prompt} [/INST]")
-pipe = pipeline("text-classification", model=model, tokenizer=tokenizer)
-print(pipe([prompt]))
+pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer) #, max_length=512)
+result = pipe(f"{prompt}")
+# pipe = pipeline("text-classification", model=model, tokenizer=tokenizer)
+# print(pipe([prompt]))
 
 result = pipe([prompt])
 print(result)

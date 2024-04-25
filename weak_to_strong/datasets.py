@@ -7,6 +7,8 @@ from datasets import Dataset as HfDataset
 from datasets import load_dataset as hf_load_dataset
 from datasets import Dataset, Features, Value, Sequence
 import pandas as pd
+import numpy as np
+
 import glob
 import json 
 import random
@@ -38,25 +40,37 @@ def load_dataset(ds_name: str, seed: int = 0, split_sizes: dict = None):
     results = {}
     print('Loading dataset:', ds_name)
     # Check if cfg has a file_path attribute and it ends with csv
-    if hasattr(cfg, 'file_path') and cfg.file_path and cfg.file_path.endswith('.csv'):
+    if hasattr(cfg, 'file_path') and cfg.file_path:
         # Load dataset from CSV file
         file_path = cfg.file_path  # Assuming you have a file path stored in cfg
         data = pd.read_csv(file_path).sample(frac=1, random_state=seed)  # Shuffle the data
         used_indices = set()  # Keep track of used indices
 
-        for split, n_docs in split_sizes.items():
-            print(f"Creating split: {split}")
-            if n_docs is not None and len(data) >= n_docs:
-                remaining_indices = set(data.index) - used_indices  # Exclude used indices
-                sample_indices = data.loc[list(remaining_indices)].sample(n=n_docs, random_state=seed).index
-                ds = data.loc[sample_indices].copy()  # Make a copy to avoid modifying original data
-                used_indices.update(sample_indices)  # Update used indices
-            else:
-                print(f"Warning: {ds_name} has less than {n_docs} docs, using all")
-                ds = data.copy()  # Use all data if n_docs is None or exceeds dataset size
-            
-            ds = cfg.formatter(ds, seed)
-            results[split] = ds 
+        if 'train' in list(data.columns):
+            ds_train = data[data['train'] == 1]
+            ds_test = data[data['train'] == 0]
+
+            ## means that train/test is already built in. now, split_sizes becomes how much to subsample
+            n_docs_train = split_sizes['train']
+            n_docs_test = split_sizes['test']
+
+            if split_sizes['train'] is not None:
+                if len(ds_train) >= n_docs_train:
+                    ds_train = ds_train.sample(n=split_sizes['train'], random_state=seed)
+                else:
+                    print(f"Warning: training dataset has {len(ds_train)} points and asked to subsample {n_docs_train}, using all")
+
+            ds_train = cfg.formatter(ds_train, np.random.default_rng(seed))
+            results['train'] = ds_train
+
+            if split_sizes['test'] is not None:
+                if len(ds_test) >= n_docs_test:
+                    ds_test = ds_test.sample(n=split_sizes['test'], random_state=seed)
+                else:
+                    print(f"Warning: training dataset has {len(ds_test)} points and asked to subsample {n_docs_test}, using all")
+
+            ds_test = cfg.formatter(ds_test, np.random.default_rng(seed))
+            results['test'] = ds_test
             
     elif hasattr(cfg, 'folder') and cfg.folder:
         # Load dataset from JSON files
@@ -327,6 +341,138 @@ register_dataset(
         folder= "data/medQA_4_options/",
         loader=hf_loader("medqa"),                     
         formatter=format_medqa
+    ),
+)
+
+def format_report(data, rng):
+    hard_label = data['hard_label'].astype(int).tolist()
+    soft_label = [[1 - float(label), float(label)] for label in hard_label]
+    txt = []
+    for _, row in data.iterrows():
+        h = int(row['hard_label'])
+        answer = None
+        if h:
+            answer = row['label']
+        else:
+            answer = rng.choice([row['distraction1'], row['distraction2']])
+
+        txt.append(f"Report: {row['report_small']}\n\nAnswer: {answer}")
+
+
+    # Define features for the dataset
+    features = Features({
+        'txt': Value('string'),
+        'hard_label': Value('int64'),
+        'soft_label': Sequence(Value('float64'))  # List of floats representing soft label probabilities
+    })
+
+    # Create a Hugging Face Dataset from the formatted data
+    hf_dataset = Dataset.from_dict({
+        'txt': txt,
+        'hard_label': hard_label,
+        'soft_label': soft_label,
+    }, features=features)
+
+    return hf_dataset
+
+
+register_dataset(
+    "cxr-report",
+    DatasetConfig(
+        file_path= "data/report_multiclass.csv",
+        loader=hf_loader("cxr-report"),
+        formatter=format_report,
+    ),
+)
+
+register_dataset(
+    "cxr-report-2",
+    DatasetConfig(
+        file_path= "data/report_multiclass_v2.csv",
+        loader=hf_loader("cxr-report"),
+        formatter=format_report,
+    ),
+)
+
+def format_bbq(data, rng):
+    hard_label = data['hard_label'].astype(int).tolist()
+    soft_label = [[1 - float(label), float(label)] for label in hard_label]
+    txt = []
+    for _, row in data.iterrows():
+        h = int(row['hard_label'])
+        answer = None
+        if h:
+            answer = row[f'ans{row["label"]}']
+        else:
+            answer_idx = rng.choice([i for i in range(3) if i != int(row['label'])])
+            answer = row[f'ans{answer_idx}']
+
+        txt.append(f"Context: {row['context']}\nQuestion: {row['question']}\nAnswer: {answer}")
+
+    # Define features for the dataset
+    features = Features({
+        'txt': Value('string'),
+        'hard_label': Value('int64'),
+        'soft_label': Sequence(Value('float64'))  # List of floats representing soft label probabilities
+    })
+
+    # Create a Hugging Face Dataset from the formatted data
+    hf_dataset = Dataset.from_dict({
+        'txt': txt,
+        'hard_label': hard_label,
+        'soft_label': soft_label,
+    }, features=features)
+
+    return hf_dataset
+
+
+register_dataset(
+    "bbq",
+    DatasetConfig(
+        file_path= "data/bbq.csv",
+        loader=hf_loader("bbq"),
+        formatter=format_bbq,
+    ),
+)
+
+def format_shadr(data, rng):
+    hard_label = data['hard_label'].astype(int).tolist()
+    soft_label = [[1 - float(label), float(label)] for label in hard_label]
+    txt = []
+    for _, row in data.iterrows():
+        h = int(row['hard_label'])
+        answer = None
+        if h:
+            answer = row['label']
+        else:
+            answer = rng.choice([row['distraction1'], row['distraction2']])
+
+        txt.append(f"Sentence: {row['text']}\n\n Is the following social determinant of health is associated with the sentence above? Answer: {answer}")
+
+
+    # Define features for the dataset
+    features = Features({
+        'txt': Value('string'),
+        'hard_label': Value('int64'),
+        'soft_label': Sequence(Value('float64'))  # List of floats representing soft label probabilities
+    })
+
+    # Create a Hugging Face Dataset from the formatted data
+    hf_dataset = Dataset.from_dict({
+        'txt': txt,
+        'hard_label': hard_label,
+        'soft_label': soft_label,
+    }, features=features)
+
+    return hf_dataset
+
+
+register_dataset(
+    "shadr",
+    DatasetConfig(
+        file_path= "data/shadr.csv",
+        loader=hf_loader("shadr"),
+        formatter=format_shadr,
     ),
 )
 

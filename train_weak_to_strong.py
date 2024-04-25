@@ -17,13 +17,13 @@ from weak_to_strong.train import ModelConfig, train_and_save_model
 model_conf_params = {}
 
 #create configs
-param_sizes = ["70m", "160m","410m"] #,"1b","1.4b","2.8b"]
+param_sizes = ["70m", "160m","410m", "355m"] #,"1b","1.4b","2.8b"]
 learning_rates = [5e-5,5e-5,5e-5,5e-5,5e-5]
 batch_sizes = [60,48,24,24,18]
-model_names = [f"EleutherAI/pythia-{params}" for params in param_sizes]
+model_names = [f"EleutherAI/pythia-{params}" for params in param_sizes[:]] + ["gpt2-medium"]
 
 for idx,param in enumerate(param_sizes):
-    model_name = f"EleutherAI/pythia-{param}"
+    model_name = f"{model_names[idx]}"
     model_conf_params[model_name] = {"default_lr":5e-5,
     "eval_batch_size":batch_sizes[idx],
     "batch_size":batch_sizes[idx],
@@ -41,7 +41,16 @@ for key, value in model_conf_params.items():
         batch_size=value["batch_size"],
         minibatch_size_per_device=value["minibatch_size_per_device"]
     )
-    
+
+# MODELS_DICT["gpt2-medium",] = ModelConfig(
+#         name="gpt2-medium",
+#         default_lr=5e-5,
+#         eval_batch_size=32,
+#         #custom_kwargs={
+#         #    "torch_dtype": torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32,
+#         #}
+#         )
+
 loss_dict = {
     "logconf": logconf_loss_fn(),
     "product": product_loss_fn(),
@@ -218,7 +227,7 @@ def train_w2s(
         optimizer_name=weak_optim,
     )
 
-    # Train the strong model on the second half of the training data
+    #Train the strong model on the second half of the training data
     print(f"Training strong model, size {strong_model_size}")
     strong_test_results, _ = train_model(
         strong_model_config,
@@ -241,6 +250,7 @@ def train_w2s(
         print(
             f"Training transfer model, size {strong_model_size} on labels from {weak_model_size}, with loss {tloss}"
         )
+        print('TRANSFER EPOCHS:', transfer_epochs)
         transfer_test_results, _ = train_model(
             strong_model_config,
             strong_model_ckpt,
@@ -278,12 +288,12 @@ def train_w2s(
 if __name__ == "__main__":
 
     train_params = {
-        'batch_size': 18,
+        'batch_size': 32,
         'max_ctx': 512,
         'ds_name': "medqa",
         'transfer_loss': "xent,logconf",
-        'n_docs': 100,
-        'n_test_docs': 10,
+        'n_docs': None,
+        'n_test_docs': None,
         'weak_model_size': "gpt2-medium", #"EleutherAI/pythia-14m", #"EleutherAI/pythia-70m",
         'weak_model_ckpt': "step1000",
         'weak_lr': None,
@@ -294,13 +304,15 @@ if __name__ == "__main__":
         'weak_optim': None,
         'strong_optim': None,
         'transfer_optim': None,
-        'gt_epochs': 2,
-        'transfer_epochs': None,
+        'gt_epochs': 10,
+        'transfer_epochs': None,  #10, #10, #None,
         'force_retrain': True,
         'seed': 0,
         'minibatch_size_per_device': 3,
+        
         'train_with_dropout': False,
-        'results_folder': "results_medqa",
+        
+        'results_folder': "results_medqa_512",
         'linear_probe': False,
         'lr_schedule': "cosine_anneal",
         'log_prefix': "",
@@ -310,17 +322,18 @@ if __name__ == "__main__":
     from tqdm import tqdm
 
     param_list =  list(reversed(["70m", "160m","410m","1b","1.4b","2.8b"]))
-    step_list = list(range(1, 155, 30))[:2]
-
-    train_params['results_folder'] = "results_" + train_params['ds_name'] + '_' + str(train_params['n_docs']) + '_' + str(train_params['n_test_docs'])
+    step_list = list(range(1, 122, 30)) #[:2]
+    print(step_list)
+    train_params['results_folder'] = "results_" + train_params['ds_name'] + '_' + str(train_params['max_ctx']) + '_' + str(train_params['n_docs']) + '_' + str(train_params['n_test_docs']) + '_epoch:' + str(train_params['gt_epochs']) + '_batch:' + str(train_params['batch_size']) #+ '_transfer_' + str(train_params['transfer_epochs'])
     print(train_params["results_folder"])
 
     model_combinations = product(param_list, repeat=2)
     checkpoint_combinations = product(step_list, repeat=2)
 
-    
+    print(param_list)
     for (weak_model_param, strong_model_param), (weak_ckpt_step, strong_ckpt_step) in tqdm(product(model_combinations, checkpoint_combinations)):
         weak_model_size_str = f"EleutherAI/pythia-{weak_model_param}"
+        #weak_model_size_str = f"gpt2-medium"
         strong_model_size_str = f"EleutherAI/pythia-{strong_model_param}"
         weak_model_ckpt_str = f"step{str(int(weak_ckpt_step * 1000))}"
         strong_model_ckpt_str = f"step{str(int(strong_ckpt_step * 1000))}"
@@ -330,25 +343,26 @@ if __name__ == "__main__":
         train_params["weak_model_ckpt"] = weak_model_ckpt_str
         train_params["strong_model_ckpt"] = strong_model_ckpt_str
 
-        file_path = os.path.join(f"results/{train_params['results_folder']}/{weak_model_size_str.replace('/', '_')}_{weak_model_ckpt_str}_{strong_model_size_str.replace('/', '_')}_{strong_model_ckpt_str}_{datetime.date.today()}.results_summary.json")
+        file_path = os.path.join(f"results/{train_params['results_folder']}/{weak_model_size_str.replace('/', '_')}_{weak_model_ckpt_str}_{strong_model_size_str.replace('/', '_')}_{strong_model_ckpt_str}_.results_summary.json")
         
        # if weak_model_param not in ["1b", "1.4b", "2.8b"] and strong_model_param in ["160m"]:
         if weak_model_param in ["70m"] and strong_model_param in ["160m"]: 
-            print('*****************TRAINING*****************')
-            print(f"weak_model_param: {weak_model_param}, strong_model_param: {strong_model_param}, weak_ckpt_step: {weak_ckpt_step}, strong_ckpt_step: {strong_ckpt_step}")
-        
-            if (os.path.exists(file_path) and os.path.getsize(file_path) > 0):
-                print (f"filepath: {file_path} exists")
-            else:
-                print(
-                    f"Train parameters: "
-                    f"weak_model_size={weak_model_size_str}, strong_model_size={strong_model_size_str}; "
-                    f"weak_model_ckpt={weak_model_ckpt_str}, strong_model_ckpt={strong_model_ckpt_str}"
-                )
-
-                try:
-                    train_w2s(**train_params)
-                except Exception as e:
-                    print('IT NOT TRAINING')
-                    print(f"An exception occurred: {type(e).__name__}: {e}")
+            if weak_ckpt_step == strong_ckpt_step:
+                print('*****************TRAINING*****************')
+                print(f"weak_model_param: {weak_model_param}, strong_model_param: {strong_model_param}, weak_ckpt_step: {weak_ckpt_step}, strong_ckpt_step: {strong_ckpt_step}")
             
+                if (os.path.exists(file_path) and os.path.getsize(file_path) > 0):
+                    print (f"filepath: {file_path} exists")
+                else:
+                    print(
+                        f"Train parameters: "
+                        f"weak_model_size={weak_model_size_str}, strong_model_size={strong_model_size_str}; "
+                        f"weak_model_ckpt={weak_model_ckpt_str}, strong_model_ckpt={strong_model_ckpt_str}"
+                    )
+
+                    try:
+                        train_w2s(**train_params)
+                    except Exception as e:
+                        print('IT NOT TRAINING')
+                        print(f"An exception occurred: {type(e).__name__}: {e}")
+                

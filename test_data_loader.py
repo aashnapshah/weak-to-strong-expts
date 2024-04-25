@@ -7,9 +7,9 @@ from weak_to_strong.datasets import load_dataset, VALID_DATASETS
 import numpy as np
 print(VALID_DATASETS)
 
-ds_name = "medqa"
+ds_name = "shadr"
 print(ds_name)
-ds = load_dataset(ds_name, split_sizes=dict(train=10000, test=10))
+ds = load_dataset(ds_name, split_sizes=dict(train=10000, test=1000))
 
 # ds_name = "medqa"
 # ds = load_dataset(ds_name, split_sizes=dict(train=1000, test=10), seed=42) 
