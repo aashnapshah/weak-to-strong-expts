@@ -6,3 +6,5 @@ results_v1
 results/results_*/[^/]*.json
 data/*
 .DS_Store
+venv/
+results/
