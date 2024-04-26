@@ -53,7 +53,7 @@ def eval_model_acc(model: nn.Module, ds: datasets.Dataset, eval_batch_size: int 
                         txt=txt,
                         input_ids=input_id,
                         gt_label=label,
-                        hard_label=pred,
+                        pred_hard_label=pred,
                         acc=label == pred,
                         logits=logit,
                         soft_label=prob,

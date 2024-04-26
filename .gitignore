@@ -3,4 +3,6 @@ dump
 *.swp
 *.swo
 results_v1
-results
+results/results_*/[^/]*.json
+data/*
+.DS_Store

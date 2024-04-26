@@ -217,7 +217,7 @@ def train_and_save_model(
     already_trained = False
     # Load the model
     if model_config.model_parallel:
-        assert torch.cuda.device_count() > 1, f"you might want more gpus for {model_config.name}"
+        #assert torch.cuda.device_count() > 1, f"you might want more gpus for {model_config.name}"
         model = TransformerWithHead.from_pretrained(
             model_config.name,
             checkpoint,
